@@ -1,6 +1,6 @@
 /**
 特务之明星送好礼
-一次性脚本。请禁用！
+请自行测水，平常请禁用
 cron 36 8,19 * * * jd_superBrandStar.js
  */
 const $ = new Env('特务之明星送好礼');
@@ -196,18 +196,24 @@ function dealReturn(type, data) {
             }
             break;
         case 'superBrandTaskLottery':
-            if (data.code === '0' && data.data.bizCode !== 'TK000') {
-                $.runFlag = false;
-                console.log(`抽奖次数已用完`);
-            } else if (data.code === '0' && data.data.bizCode == 'TK000') {
-                if (data.data?.result?.rewardComponent?.beanList) {
-                    console.log(`获得豆子：${data.data.result.rewardComponent.beanList[0].quantity}`);
-                } else{
-                    console.log(data.data?.result);
+
+            if (data.code == 0) {
+                if (data.data.bizCode == 'TK103') {
+                    console.log(`已完成抽奖！`);
+                } else if (data.data.bizCode == 'TK000') {
+                    if (data.data?.result?.rewardComponent?.beanList) {
+                        console.log(`获得豆子：${data.data.result.rewardComponent.beanList[0].quantity}`);
+                    } else {
+                        console.log(JSON.stringify(data));
+                    }
+                } else if (data.data.bizCode == '6004') {
+                    console.log(`还有任务未完成，无法抽奖！`);
+                } else {
+                    console.log(`抽奖失败`);
+                    console.log(JSON.stringify(data));
                 }
             } else {
-                $.runFlag = false;
-                console.log(`抽奖失败`);
+                console.log(JSON.stringify(data));
             }
             //console.log(JSON.stringify(data));
             break;
