@@ -15,6 +15,7 @@ PDD转赚红包抽奖提现
 JD_PDD1_DRAW_RETRY     // 抽奖 提示未中奖等最大重试次数 默认 20 次
 JD_PDD1_TXMAX_RETRY     // 已存在状态/待发放，提现中，等最大重试次数 默认 2 次
 JD_PDD1_TX_RETRY // 提现接口重试 默认为0  不重试
+JD_PDD1_AUTOTX // 拉取接口提现 默认提现抽奖中的现金
 
 兑换红包变量：
 export JD_PDD1_Exchange="true" // 上限后兑换红包，默认关闭
