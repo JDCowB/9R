@@ -4,6 +4,8 @@
 
 自行控制助力上限
 
+入口：https://pro.m.jd.com/mall/active/3SqixAPiuuXFrLo8K6otUHB1oZjU/index.html
+
 cron:1 1 1 1 *
 
 */
