@@ -1,10 +1,12 @@
 /*
 活动名称：生日礼包（超级无线V2）
-活动链接：https://lzkj-isv.isvjcloud.com/prod/cc/interaction/v2/${$.activityType}/1001/?activityId=xxxx&shopId=xxxx
+活动链接：https://lzkj-isv.isvjcloud.com/prod/cc/interaction/v2/activityType=<类型id>/1001/?activityId=xxxx&shopId=xxxx
 环境变量：jd_lzkj_v2_birthday_url // 活动链接
 		jd_lzkj_v2_birthday_opencard // 是否入会（true/false），默认不入会
         jd_lzkj_v2_birthday_Notify // 是否推送通知（true/false），默认不推送
         jd_lzkj_v2_birthday_break // IP被限制后继续执行，默认退出运行（true/false）
+
+支持的活动类型：20002 生日礼包
 
 cron:1 1 1 1 *
 
