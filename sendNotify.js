@@ -21,7 +21,7 @@ const querystring = require('querystring');
 const exec = require('child_process').exec;
 const $ = new Env();
 const timeout = 15000; //超时时间(单位毫秒)
-console.log("\n加载sendNotify，频道：https://t.me/Rebels_channel");
+console.log("\n====加载sendNotify，频道：https://t.me/Rebels_channel====\n");
 const common = require('./utils/Rebels_jdCommon');
 $.UA = common.genUA($.UserName);
 // =======================================go-cqhttp通知设置区域===========================================
