@@ -1,13 +1,14 @@
 /*
 活动名称：店铺关注有礼
 活动链接：店铺首页关注按钮
-环境变量：jd_drawShopGift_argv // 活动参数，支持格式：”<shopId(店铺id)>_<venderId(店主id)>“ 或 ”<venderId(店主id)>“ 或 ”<活动店铺首页链接>“ 或 ”<shopId(店铺id)>“ 或 ”<venderId(店主id)>
+环境变量：jd_drawShopGift_argv // 活动参数，支持四种格式：”<shopId(店铺id)>_<venderId(店主id)>“ 或 ”<venderId(店主id)>“ 或 ”<shopId(店铺id)>“ 或 ”<活动店铺首页链接>“
         jd_drawShopGift_threads // 控制并发线程数（正整数），默认1
         jd_drawShopGift_interval // 自定义运行间隔时长（整数，单位毫秒），默认1000
         jd_drawShopGift_notify // 是否推送通知（true/false），默认不推送
 
 高并发脚本，黑号领不到奖品
 活动限制IP严重，建议使用代理，谨慎使用并发
+请尽量使用第一种变量格式提供完整信息，否则可能会查询不到店铺信息
 
 cron:1 1 1 1 *
 
