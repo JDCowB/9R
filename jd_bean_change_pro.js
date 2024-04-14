@@ -8,6 +8,7 @@ const $ = new Env('京东资产变动');
 const notify = $.isNode() ? require('./sendNotify') : '';
 const common = require('./utils/Rebels_jdCommon');
 const JXUserAgent = $.isNode() ? (process.env.JX_USER_AGENT ? process.env.JX_USER_AGENT : ``) : ``;
+const axios = require('axios');
 //Node.js用户请在jdCookie.js处填写京东ck;
 const jdCookieNode = $.isNode() ? require('./jdCookie.js') : '';
 let NowHour = new Date().getHours();
@@ -17,9 +18,8 @@ let checkbeanDetailMode=1;
 if ($.isNode() && process.env.BEANCHANGE_BEANDETAILMODE){
 	checkbeanDetailMode=process.env.BEANCHANGE_BEANDETAILMODE*1;
 }
-
-const fs = require('fs');
 const CR = require('crypto-js');
+const fs = require('fs');
 let matchtitle="昨日";
 let yesterday="";
 let TodayDate="";
@@ -120,12 +120,14 @@ let strSubNotify="";
 let llPetError=false;
 let strGuoqi="";
 let RemainMessage = '\n';
-RemainMessage += "⭕提醒:⭕" + '\n';
-RemainMessage += '【京喜特价金币】京东特价版->我的->金币(可兑换无门槛红包)\n';
-RemainMessage += '【话费积分】京东->充值中心-赚积分兑话费（180天效期）\n';
-RemainMessage += '【超市卡】京东超市-超市卡赠金（30天效期，购买超市商品可用）\n';
-RemainMessage += '【东东农场】京东->我的->东东农场,完成可兑换无门槛红包,可用于任意商品\n';
-RemainMessage += '【其他】不同类别红包不能叠加使用，自测';
+RemainMessage += "⭕活动攻略:⭕" + '\n';
+RemainMessage += '【礼品卡】京东->我的->礼品卡,仅自营商品和一号店app可用\n';
+RemainMessage += '【超市卡】京东->我的->礼品卡->京东超市,仅京东超市商品可用\n';
+RemainMessage += '【特价金币】京东特价版->我的->金币(特价版使用)\n';
+RemainMessage += '【领现金】京东->搜索领现金(微信提现+京东红包)\n';
+RemainMessage += '【东东农场】京东->我的->东东农场,完成是京东红包,可以用于京东app的任意商品\n';
+RemainMessage += '【京东金融】京东金融app->我的->养猪猪,完成是白条支付券,支付方式选白条支付时立减.\n';
+RemainMessage += '【其他】京喜红包只能在京喜使用,其他同理';
 
 let WP_APP_TOKEN_ONE = "";
 
@@ -187,9 +189,9 @@ if ($.isNode() && process.env.BEANCHANGE_SUBNOTIFY) {
 if ($.isNode() && process.env.BEANCHANGE_ALLNOTIFY) {	
 	strAllNotify=process.env.BEANCHANGE_ALLNOTIFY;
 	console.log(`检测到设定了公告,将在推送信息中置顶显示...`);
-	strAllNotify = "✨✨✨✨✨✨✨公告✨✨✨✨✨✨✨\n"+strAllNotify;
+	strAllNotify = `【✨✨✨✨公告✨✨✨✨】\n`+strAllNotify;
 	console.log(strAllNotify+"\n");
-	strAllNotify +="\n🎏🎏🎏🎏🎏🎏🎏🎏🎏🎏🎏🎏🎏🎏🎏\n"
+	strAllNotify +=`\n🎏🎏🎏🎏🎏🎏🎏🎏🎏🎏🎏🎏🎏`
 }
 
 
@@ -250,27 +252,12 @@ if(DisableIndex!=-1){
 	EnableOverBean=false
 }
 
-//查优惠券
-let EnableChaQuan=false;
-DisableIndex=strDisableList.findIndex((item) => item === "查优惠券");
-if(DisableIndex!=-1){
-	console.log("检测到设定关闭优惠券查询");
-	EnableChaQuan=false
-}
-
 DisableIndex=strDisableList.findIndex((item) => item === "活动攻略");
 if(DisableIndex!=-1){
 	console.log("检测到设定关闭活动攻略显示");
 	RemainMessage="";
 }
 
-//汪汪赛跑
-let EnableJoyRun=false;
-DisableIndex=strDisableList.findIndex((item) => item === "汪汪赛跑");
-if(DisableIndex!=-1){
-	console.log("检测到设定关闭汪汪赛跑查询");
-	EnableJoyRun=false
-}
 
 //京豆收益查询
 let EnableCheckBean=true;
@@ -280,7 +267,12 @@ if(DisableIndex!=-1){
 	EnableCheckBean=false
 }
 
-
+let EnableCheckEcard=true;
+DisableIndex=strDisableList.findIndex((item) => item === "E卡查询");
+if(DisableIndex!=-1){
+	console.log("检测到设定关闭E卡查询");
+	EnableCheckEcard=false
+}
 
 !(async() => {
 	if (!cookiesArr[0]) {
@@ -329,11 +321,11 @@ if(DisableIndex!=-1){
 			$.YunFeiTitle2="";
 			$.YunFeiQuan2 = 0;
 			$.YunFeiQuanEndTime2 = "";
-			$.JoyRunningAmount = "";
 			$.ECardinfo = "";
 			$.PlustotalScore=0;
 			$.CheckTime="";
-			$.beanCache=0;			
+			$.beanCache=0;
+			$.marketCardTotal="";			
 			TempBaipiao = "";
 			strGuoqi="";
 			
@@ -420,10 +412,9 @@ if(DisableIndex!=-1){
 			await Promise.all([        
 			        cash(), //特价金币
 			        bean(), //京豆查询
-			        // jdCash(), //领现金
-					getek(),//京东E卡
-			        GetJoyRuninginfo(), //汪汪赛跑
-			        queryScores()
+			        jdCash(), //领现金
+					CheckEcard(), //E卡查询
+					getmarketCard()
 			    ])
 				
 			await showMsg();
@@ -675,14 +666,13 @@ async function showMsg() {
 			
 	    ReturnMessage += `【账号信息】`;
 	    if ($.isPlusVip) {
-	        ReturnMessage += `Plus会员`;
-	        if ($.PlustotalScore)
-	            ReturnMessage += `(${$.PlustotalScore}分)`
+	        ReturnMessage += `Plus会员`;	        
 	    } else {
 	        ReturnMessage += `普通会员`;
-	        if ($.PlustotalScore)
-	            ReturnMessage += `(${$.PlustotalScore}分)`			
-	    }  
+	    } 
+		if ($.PlustotalScore)
+	        ReturnMessage += `(${$.PlustotalScore}分)` 
+			
 	    ReturnMessage += `,京享值${$.JingXiang}\n`;	    
 	}else{
 		ReturnMessageTitle+= `\n`;
@@ -753,10 +743,11 @@ async function showMsg() {
 		ReturnMessage += `【特价金币】${$.JDtotalcash}币(≈${($.JDtotalcash / 10000).toFixed(2)}元)\n`;
 	}	
 	if($.ECardinfo)
-		ReturnMessage += `【E卡余额】${$.ECardinfo}元\n`;
+		ReturnMessage += `【礼品卡余额】${$.ECardinfo}\n`;
+
+	if($.marketCardTotal)
+		ReturnMessage += `【超市卡余额】${$.marketCardTotal}\n`;	
 	
-	if ($.JoyRunningAmount) 
-		ReturnMessage += `【汪汪赛跑】${$.JoyRunningAmount}元\n`;
 
 	if ($.JdFarmProdName != "") {
 		if ($.JdtreeEnergy != 0) {
@@ -829,14 +820,6 @@ async function showMsg() {
       }
       ReturnMessage += `\n`;
     }
-    let marketcard = await marketCard();
-    if (marketcard && marketcard.balance != '0.00' ) {
-        ReturnMessage += `【超市卡】${marketcard.balance}元`;
-        if (marketcard.expirationGiftAmountDes) {
-            ReturnMessage += `(${marketcard.expirationGiftAmountDes})`;
-        }
-        ReturnMessage += `\n`;
-    }
 	if ($.jdCash) {
 		ReturnMessage += `【其他信息】`;
 		
@@ -880,7 +863,7 @@ async function showMsg() {
 		allMessageGp4 += ReturnMessageTitle+ReturnMessage + `\n`;
 	}
 	if (userIndex2 == -1 && userIndex3 == -1 && userIndex4 == -1) {
-		allMessage += ReturnMessageTitle+ReturnMessage + `\n------\n`;
+		allMessage += ReturnMessageTitle+ReturnMessage + `\n`;
 	}
 
 	console.log(`${ReturnMessageTitle+ReturnMessage}`);
@@ -989,9 +972,7 @@ async function bean() {
 	if (EnableOverBean) {
 	    await jingBeanDetail(); //过期京豆	    
 	}
-	await redPacket();
-	if (EnableChaQuan)
-	    await getCoupon();
+	await redPacket();	
 }
 
 async function Monthbean() {
@@ -1094,6 +1075,120 @@ async function jdCash() {
 		})
 }
 
+function randomUserAgent() {
+    const uuid = generateRandomString('abcdefghijklmnopqrstuvwxyz0123456789', 40);
+    const addressid = generateRandomString('1234567898647', 10);
+    const iosVer = selectRandomFromArray(["15.1.1", "14.5.1", "14.4", "14.3", "14.2", "14.1", "14.0.1"]);
+    const iosV = iosVer.replace(/\./g, '_');
+    const clientVersion = selectRandomFromArray(["10.3.0", "10.2.7", "10.2.4"]);
+    const iPhone = selectRandomFromArray(["8", "9", "10", "11", "12", "13"]);
+    const ADID = `${generateRandomString('0987654321ABCDEF', 8)}-${generateRandomString('0987654321ABCDEF', 4)}-${generateRandomString('0987654321ABCDEF', 4)}-${generateRandomString('0987654321ABCDEF', 4)}-${generateRandomString('0987654321ABCDEF', 12)}`;
+    const area = `${generateRandomString('0123456789', 2)}_${generateRandomString('0123456789', 4)}_${generateRandomString('0123456789', 5)}_${generateRandomString('0123456789', 4)}`;
+    const lng = `119.31991256596${randomInt(100, 999)}`;
+    const lat = `26.1187118976${randomInt(100, 999)}`;
+
+    const UserAgent = `jdapp;iPhone;10.0.4;${iosVer};${uuid};network/wifi;ADID/${ADID};model/iPhone${iPhone},1;addressid/${addressid};appBuild/167707;jdSupportDarkMode/0;Mozilla/5.0 (iPhone; CPU iPhone OS ${iosV} like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/null;supportJDSHWK/1`;
+    return UserAgent;
+}
+
+function generateRandomString(chars, length) {
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+}
+
+function selectRandomFromArray(array) {
+    return array[Math.floor(Math.random() * array.length)];
+}
+
+function randomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1) + min);
+}
+
+async function CheckEcard(ck) {
+	if (!EnableCheckEcard)
+        return;
+	const UA=randomUserAgent();
+    const url = 'https://mygiftcard.jd.com/giftcard/queryGiftCardItem/app?source=JDAP';
+    const headers = {
+        "accept": "application/json, text/plain, */*",
+        "accept-encoding": "gzip, deflate, br",
+        "accept-language": "zh-CN,zh-Hans;q=0.9",
+        "content-length": "44",
+        "content-type": "application/x-www-form-urlencoded",
+        "cookie": cookie,
+        "origin": "https://mygiftcard.jd.com",
+        "referer": "https://mygiftcard.jd.com/giftcardForM.html?source=JDAP&sid=9f55a224c8286baa2fe3a7545bbd411w&un_area=16_1303_48712_48758",
+        "user-agent": UA
+    };
+    
+    let balance = 0;
+	let TotalCard = 0;
+    try {
+		var data = 'pageNo=1&queryType=1&cardType=-1&pageSize=20';
+        var response = await axios.post(url, data, { headers: headers });
+        var couponVOList = response.data.couponVOList;
+		
+		TotalCard+=couponVOList.length;
+        for (let i = 0; i < couponVOList.length; i++) {
+            balance += couponVOList[i]['balance'];
+        }
+		
+		if (TotalCard==20){
+			data = 'pageNo=2&queryType=1&cardType=-1&pageSize=20';
+			response = await axios.post(url, data, { headers: headers });
+			couponVOList = response.data.couponVOList;
+			TotalCard+=couponVOList.length;
+			for (let i = 0; i < couponVOList.length; i++) {
+				balance += couponVOList[i]['balance'];
+			}
+		}
+		
+        if (balance > 0) 
+			$.ECardinfo = '共' + TotalCard + '张E卡,合计' + parseFloat(balance).toFixed(2) + '元';
+		
+    } catch (e) {
+        console.error(e);
+    }
+}
+async function getmarketCard() {
+	if (!EnableCheckEcard)
+        return;
+    const url = 'https://api.m.jd.com/atop_channel_marketCard_cardInfo';
+	const UA=randomUserAgent();
+    const headers = {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate, br",
+        "accept-language": "zh-CN,zh-Hans;q=0.9",
+        "content-length": "1250",
+        "content-type": "application/x-www-form-urlencoded",
+        "cookie": cookie,
+        "origin": "https://pro.m.jd.com",
+        "referer": "https://pro.m.jd.com/mall/active/3KehY4eAj3D1iLzFB7p5pb68qXkT/index.html?stath=54&navh=44&topNavStyle=1&babelChannel=ttt9&hideAnchorBottomTab=1&hideBack=1&tttparams=ib0MwweyJnTGF0IjoiMjYuMTE5OTQ2IiwidW5fYXJlYSI6IjE2XzEzMDNfNDg3MTJfNDg3NTgiLCJkTGF0IjoiIiwicHJzdGF0ZSI6IjAiLCJhZGRyZXNzSWQiOiI5MjU4MDQyNTg3IiwibGF0IjoiMC4wMDAwMDAiLCJwb3NMYXQiOiIyNi4xMTk5NDYiLCJwb3NMbmciOiIxMTkuMzIwMzM5IiwiZ3BzX2FyZWEiOiIwXzBfMF8wIiwibG5nIjoiMC4wMDAwMDAiLCJ1ZW1wcyI6IjAtMC0yIiwiZ0xuZyI6IjExOS4zMjAzMzkiLCJtb2RlbCI6ImlQaG9uZTE1LDIiLCJkTG5nIjoiIn60%3D&forceCurrentView=1&showhead=no",
+        "request-from": "native",
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-site",
+        "user-agent": UA,
+        "x-referer-page": "https://pro.m.jd.com/mall/active/3KehY4eAj3D1iLzFB7p5pb68qXkT/index.html",
+        "x-rp-client": "h5_1.0.0"
+    };
+	const data='appid=jd-super-market&t=1705212843271&functionId=atop_channel_marketCard_cardInfo&client=m&uuid=1201e4461b24640164a706c0a3444fd79de6577f&body=%7B%22babelChannel%22%3A%22ttt9%22%2C%22isJdApp%22%3A%221%22%2C%22isWx%22%3A%220%22%7D&h5st=20240114141403366%3Btnyqq56fhh69dd12%3B35fa0%3Btk02w847d1aac41lMXgyKzErM2w1k33PAhGy9ZX69M3Rvtgag743srkufMW1LE0zE5Crn405w3HPl20IgdET8DfgM32d%3B87c14a095a901f37feabf4d6616b8e149539de48e2fd715bedda5baea9729c41%3B4.3%3B1705212843366%3B5fb5b0eea0d604be5747ccee135178e687458f7f659003bdc2ca943d6e3006043ae4bf75ab450370c9d309909a15a988f37ccb53c9ced6e3017095a1065b75238ed637a529a266eb3370fc34ce5a9036017e96632bec64838fdb2f9b39c675cdc7d19ddc121504a7a32f7e1da54fc20c2f8ce6b879c255b77a506eb644aa4e532df91f2c44c6e7412b713f82847feb7e76668e7b0dd6e97685dfff3708e0fa5d4a08ca7a4eba27b71f0d5ecbc75cb17e6c4a6052b5b7b30d17005a24eb576981c7dd1b066a8ac01ffee3f77faa4cba708daf2be433c83204e302ac610d3eba913f78a2d39a82d2f74c9f05fee1768d97ffae5668989394f4412c7de5dd105e663aca420a85fa949e412ff869d0199814a265a0f13cad4ff8e0a4e6c3ccebbd22cb1f0398da3ef6eedb3b6941fdc55d7449823c957977e607ddbdf39a6e016f98&x-api-eid-token=jdd03NK6FVUZZ5D76SCVX2RZCJX3PGM7JVJNWMQ56NLLLQEEVURFKGHP537UFXMCBYWZUBFICVZMQJNXLODQMJOA6B3YOIAAAAAMNA2NP7SQAAAAAD5BK47RNLM7UAYX'
+    try {
+		const response = await axios.post(url, data, { headers });		
+        if (response.data.success && response.data.data?.floorData?.items && response.data.data?.floorData?.items[0].marketCardVO.balance>0) {
+            $.marketCardTotal = "总"+response.data.data?.floorData?.items[0].marketCardVO.balance+"元";
+			if(response.data.data?.floorData?.items[0].marketCardVO.expirationGiftAmountDes)
+				$.marketCardTotal +=","+response.data.data?.floorData?.items[0].marketCardVO.expirationGiftAmountDes;
+        }
+	} catch (e) {
+		console.error(e);
+	}
+}
+
+
 function apptaskUrl(functionId = "", body = "") {
   return {
     url: `${JD_API_HOST}?functionId=${functionId}`,
@@ -1113,106 +1208,55 @@ function apptaskUrl(functionId = "", body = "") {
 }
 
 function TotalBean() {
-    return new Promise(async resolve => {
-        const options = {
-            "url": `https://wq.jd.com/user/info/QueryJDUserInfo?sceneval=2`,
-            "headers": {
-                "Accept": "application/json,text/plain, */*",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Accept-Language": "zh-cn",
-                "Connection": "keep-alive",
-                "Cookie": cookie,
-                "Referer": "https://wqs.jd.com/my/jingdou/my.shtml?sceneval=2",
-                "User-Agent": $.UA
-            }
-        }
-        $.post(options, (err, resp, data) => {
-            try {
-                if (err) {
-                    console.log(`${JSON.stringify(err)}`)
-                    console.log(`${$.name} API请求失败，请检查网路重试`)
-                } else {
-                    if (data) {
-                        data = JSON.parse(data);
-                        if (data['retcode'] === 13) {
-                            $.isLogin = false; //cookie过期
-                            return
-                        }
-                        if (data['retcode'] === 0) {
-                            $.nickName = (data['base'] && data['base'].nickname) || $.UserName;
-							$.isPlusVip=data['isPlusVip'];
-							$.isRealNameAuth=data['isRealNameAuth'];
-							$.beanCount=(data['base'] && data['base'].jdNum) || 0 ;		
-							$.JingXiang = (data['base'] && data['base'].jvalue) || 0 ;						
-                        } else {
-                            $.nickName = $.UserName
-                        }
-						
-							
-							
-                    } else {
-                        console.log(`京东服务器返回空数据`)
-                    }
-                }
-            } catch (e) {
-                $.logErr(e, resp)
-            } finally {
-                resolve();
-            }
-        })
-    })
-}
-
-function TotalBean2() {
-	return new Promise(async(resolve) => {
+	return new Promise(async resolve => {
 		const options = {
-			url: `https://wxapp.m.jd.com/kwxhome/myJd/home.json?&useGuideModule=0&bizId=&brandId=&fromType=wxapp&timestamp=${Date.now()}`,
+			url: "https://me-api.jd.com/user_new/info/GetJDUserInfoUnion",
 			headers: {
+				"Accept": "application/json, text/plain",
+				"accept-encoding": "gzip, deflate, br",
+				"content-type": "application/json;charset=UTF-8",
 				Cookie: cookie,
-				'content-type': `application/x-www-form-urlencoded`,
-				Connection: `keep-alive`,
-				'Accept-Encoding': `gzip,compress,br,deflate`,
-				Referer: `https://servicewechat.com/wxa5bf5ee667d91626/161/page-frame.html`,
-				Host: `wxapp.m.jd.com`,
-				'User-Agent': `Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.10(0x18000a2a) NetType/WIFI Language/zh_CN`,
+				"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36 Edg/106.0.1370.42"
 			},
 			timeout: 10000
-		};
-		$.post(options, (err, resp, data) => {
+		}
+		$.get(options, (err, resp, data) => {
 			try {
 				if (err) {
-					$.logErr(err);
+					$.logErr(err)
 				} else {					
-					if (data) {								
+					if (data) {
 						data = JSON.parse(data);
-						
-						if (!data.user) {
+
+						if (data['retcode'] === "1001") {
+							$.isLogin = false; //cookie过期
 							return;
 						}
-						const userInfo = data.user;						
-						if (userInfo) {
-							if (!$.nickName)
-								$.nickName = userInfo.petName;
-							if ($.beanCount == 0) {
-								$.beanCount = userInfo.jingBean;
-							}
-							$.JingXiang = userInfo.uclass;
+						if (data['retcode'] === "0" && data.data && data.data.hasOwnProperty("userInfo")) {
+							$.nickName = data.data.userInfo.baseInfo.nickname;
+							$.levelName = data.data.userInfo.baseInfo.levelName;
+							$.isPlusVip = data.data.userInfo.isPlusVip;
+
+						}
+						if (data['retcode'] === '0' && data.data && data.data['assetInfo']) {
+							if ($.beanCount == 0)
+								$.beanCount = data.data && data.data['assetInfo']['beanNum'];
+						} else {
+							$.errorMsg = `数据异常`;
 						}
 					} else {
-						$.log('京东服务器返回空数据');
+						$.log('京东服务器返回空数据,将无法获取等级及VIP信息');
 					}
 				}
 			} catch (e) {
-				$.logErr(e);
+				$.logErr(e)
 			}
 			finally {
 				resolve();
 			}
-		});
-	});
-}
-
+		})
+	})
+} 
 function isLoginByX1a0He() {
 	return new Promise((resolve) => {
 		const options = {
@@ -1254,7 +1298,7 @@ function getJingBeanBalanceDetail(page) {
       "url": `https://bean.m.jd.com/beanDetail/detail.json?page=${page}`,
       "body": `body=${escape(JSON.stringify({"pageSize": "20", "page": page.toString()}))}&appid=ld`,
       "headers": {
-				'User-Agent': $.UA,
+        'User-Agent': "Mozilla/5.0 (Linux; Android 12; SM-G9880) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Mobile Safari/537.36 EdgA/106.0.1370.47",       
         'Content-Type': 'application/x-www-form-urlencoded',
         'Cookie': cookie,
       }
@@ -1545,140 +1589,6 @@ function redPacket() {
 		})
 	})
 }
-
-function getCoupon() {
-    return new Promise(resolve => {
-        let options = {
-            url: `https://wq.jd.com/activeapi/queryjdcouponlistwithfinance?state=1&wxadd=1&filterswitch=1&_=${Date.now()}&sceneval=2&g_login_type=1&callback=jsonpCBKB&g_ty=ls`,
-            headers: {
-                'authority': 'wq.jd.com',
-                "User-Agent": $.UA,
-                'accept': '*/*',
-                'referer': 'https://wqs.jd.com/',
-                'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                'cookie': cookie
-            },
-			timeout: 10000
-        }
-        $.get(options, async(err, resp, data) => {
-            try {				
-                data = JSON.parse(data.match(new RegExp(/jsonpCBK.?\((.*);*/))[1]);
-                let couponTitle = '';
-                let couponId = '';
-                // 删除可使用且非超市、生鲜、京贴;
-                let useable = data.coupon.useable;
-                $.todayEndTime = new Date(new Date(new Date().getTime()).setHours(23, 59, 59, 999)).getTime();
-                $.tomorrowEndTime = new Date(new Date(new Date().getTime() + 24 * 60 * 60 * 1000).setHours(23, 59, 59, 999)).getTime();
-				$.platFormInfo="";
-                for (let i = 0; i < useable.length; i++) {
-					//console.log(useable[i]);
-                    if (useable[i].limitStr.indexOf('全品类') > -1) {
-                        $.beginTime = useable[i].beginTime;
-                        if ($.beginTime < new Date().getTime() && useable[i].quota <= 100 && useable[i].coupontype === 1) {                           
-							//$.couponEndTime = new Date(parseInt(useable[i].endTime)).Format('yyyy-MM-dd');
-                            $.couponName = useable[i].limitStr;
-							if (useable[i].platFormInfo) 
-								$.platFormInfo = useable[i].platFormInfo;
-							
-							var decquota=parseFloat(useable[i].quota).toFixed(2);
-							var decdisc= parseFloat(useable[i].discount).toFixed(2);
-							if (useable[i].quota>useable[i].discount+5 && useable[i].discount<2)
-								continue
-							$.message += `【全品类券】满${decquota}减${decdisc}元`;
-							
-							if (useable[i].endTime < $.todayEndTime) {
-								$.message += `(今日过期,${$.platFormInfo})\n`;
-							} else if (useable[i].endTime < $.tomorrowEndTime) {
-								$.message += `(明日将过期,${$.platFormInfo})\n`;
-							} else {
-								$.message += `(${$.platFormInfo})\n`;
-							}
-							
-                        }
-                    }
-					if (useable[i].couponTitle.indexOf('运费券') > -1 && useable[i].limitStr.indexOf('自营商品运费') > -1) {
-					    if (!$.YunFeiTitle) {
-					        $.YunFeiTitle = useable[i].couponTitle;
-					        $.YunFeiQuanEndTime = new Date(parseInt(useable[i].endTime)).Format('yyyy-MM-dd');
-					        $.YunFeiQuan += 1;
-					    } else {
-					        if ($.YunFeiTitle == useable[i].couponTitle) {
-					            $.YunFeiQuanEndTime = new Date(parseInt(useable[i].endTime)).Format('yyyy-MM-dd');
-					            $.YunFeiQuan += 1;
-					        } else {
-					            if (!$.YunFeiTitle2)
-					                $.YunFeiTitle2 = useable[i].couponTitle;
-								
-					            if ($.YunFeiTitle2 == useable[i].couponTitle) {
-					                $.YunFeiQuanEndTime2 = new Date(parseInt(useable[i].endTime)).Format('yyyy-MM-dd');
-					                $.YunFeiQuan2 += 1;
-					            }
-					        }
-
-					    }
-
-					}
-                    if (useable[i].couponTitle.indexOf('特价版APP活动') > -1 && useable[i].limitStr=='仅可购买活动商品') {						
-                        $.beginTime = useable[i].beginTime;
-                        if ($.beginTime < new Date().getTime() && useable[i].coupontype === 1) {                            
-							if (useable[i].platFormInfo) 
-								$.platFormInfo = useable[i].platFormInfo;
-							var decquota=parseFloat(useable[i].quota).toFixed(2);
-							var decdisc= parseFloat(useable[i].discount).toFixed(2);
-							
-							$.message += `【特价版券】满${decquota}减${decdisc}元`;
-							
-							if (useable[i].endTime < $.todayEndTime) {
-								$.message += `(今日过期,${$.platFormInfo})\n`;
-							} else if (useable[i].endTime < $.tomorrowEndTime) {
-								$.message += `(明日将过期,${$.platFormInfo})\n`;
-							} else {
-								$.message += `(${$.platFormInfo})\n`;
-							}
-							
-                        }
-
-                    }
-                    //8是支付券， 7是白条券
-                    if (useable[i].couponStyle == 7 || useable[i].couponStyle == 8) {
-                        $.beginTime = useable[i].beginTime;
-                        if ($.beginTime > new Date().getTime() || useable[i].quota > 50 || useable[i].coupontype != 1) {
-                            continue;
-                        }
-                        
-                        if (useable[i].couponStyle == 8) {
-                            $.couponType = "支付立减";
-                        }else{
-							$.couponType = "白条优惠";
-						}
-						if(useable[i].discount<useable[i].quota)
-							$.message += `【${$.couponType}】满${useable[i].quota}减${useable[i].discount}元`;
-						else
-							$.message += `【${$.couponType}】立减${useable[i].discount}元`;
-                        if (useable[i].platFormInfo) 
-                            $.platFormInfo = useable[i].platFormInfo;                            
-                        
-                        //$.couponEndTime = new Date(parseInt(useable[i].endTime)).Format('yyyy-MM-dd');
-						
-                        if (useable[i].endTime < $.todayEndTime) {
-                            $.message += `(今日过期,${$.platFormInfo})\n`;
-                        } else if (useable[i].endTime < $.tomorrowEndTime) {
-                            $.message += `(明日将过期,${$.platFormInfo})\n`;
-                        } else {
-                            $.message += `(${$.platFormInfo})\n`;
-                        }
-                    }
-                }
-            } catch (e) {
-                $.logErr(e, resp);
-            }
-            finally {
-                resolve();
-            }
-        })
-    })
-}
-
 function jdfruitRequest(function_id, body = {}, timeout = 1000) {
 	return new Promise(resolve => {
 		setTimeout(() => {
@@ -1697,7 +1607,7 @@ function jdfruitRequest(function_id, body = {}, timeout = 1000) {
 								llgeterror = true;
 							}
 							else
-								$.JDwaterEveryDayT = data?.firstWaterInit?.totalWaterTimes;
+								$.JDwaterEveryDayT = data.totalWaterTaskInit.totalWaterTaskTimes;
 						}
 					}
 				} catch (e) {
@@ -1778,7 +1688,7 @@ async function getjdfruit() {
 								$.JdtreeTotalEnergy = $.farmInfo.farmUserPro.treeTotalEnergy;
 								$.treeState = $.farmInfo.treeState;
 								let waterEveryDayT = $.JDwaterEveryDayT;
-								let waterTotalT = ($.farmInfo.farmUserPro.treeTotalEnergy - $.farmInfo.farmUserPro.treeEnergy) / 10; //一共还需浇多少次水
+								let waterTotalT = ($.farmInfo.farmUserPro.treeTotalEnergy - $.farmInfo.farmUserPro.treeEnergy - $.farmInfo.farmUserPro.totalEnergy) / 10; //一共还需浇多少次水
 								let waterD = Math.ceil(waterTotalT / waterEveryDayT);
 
 								$.JdwaterTotalT = waterTotalT;
@@ -1881,58 +1791,6 @@ function taskcashUrl(functionId, body = {}) {
 		},
 		timeout: 10000
 	}
-}
-
-function GetJoyRuninginfo() {
-	if (!EnableJoyRun)
-		return;
-	
-    const headers = {
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Accept-Language": "zh-CN,zh-Hans;q=0.9",
-        "Connection": "keep-alive",
-        "Content-Length": "376",
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Cookie": cookie,
-        "Host": "api.m.jd.com",
-        "Origin": "https://h5platform.jd.com",
-        "Referer": "https://h5platform.jd.com/",
-        "User-Agent": `jdpingou;iPhone;4.13.0;14.4.2;${randomString(40)};network/wifi;model/iPhone10,2;appBuild/100609;ADID/00000000-0000-0000-0000-000000000000;supportApplePay/1;hasUPPay/0;pushNoticeIsOpen/1;hasOCPay/0;supportBestPay/0;session/${Math.random * 98 + 1};pap/JA2019_3111789;brand/apple;supportJDSHWK/1;Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148`
-		}
-	var DateToday = new Date();
-	const body = {
-        'linkId': 'L-sOanK_5RJCz7I314FpnQ',
-		'isFromJoyPark':true,
-		'joyLinkId':'LsQNxL7iWDlXUs6cFl-AAg'
-    };
-    const options = {
-        url: `https://api.m.jd.com/?functionId=runningPageHome&body=${encodeURIComponent(JSON.stringify(body))}&t=${DateToday.getTime()}&appid=activities_platform&client=ios&clientVersion=3.9.2`,
-        headers,
-    }
-	return new Promise(resolve => {
-        $.get(options, (err, resp, data) => {
-            try {
-                if (err) {
-                    console.log(`${JSON.stringify(err)}`)
-                    console.log(`GetJoyRuninginfo API请求失败，请检查网路重试`)
-                } else {
-                    if (data) {
-						//console.log(data);
-                        data = JSON.parse(data);
-                        if (data.data.runningHomeInfo.prizeValue) {
-							$.JoyRunningAmount=data.data.runningHomeInfo.prizeValue * 1;							
-						}
-                    }
-                }
-            } catch (e) {
-                $.logErr(e, resp)
-            }
-            finally {
-                resolve(data)
-            }
-        })
-    })
 }
 	
 function randomString(e) {
